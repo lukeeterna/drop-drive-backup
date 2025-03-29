@@ -3,7 +3,7 @@ services:
     name: drop-drive-backup
     runtime: python
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "python main.py"
+    startCommand: "python main.py"  # 🔥 Qui c'è l'errore
     envVars:
       - key: CLIENT_SECRET_FILE
         value: client_secret.json
@@ -17,8 +17,3 @@ services:
         value: 1ewRXIwPs-gxmtfn6S0z95LYk9yrZxgwL
       - key: OAUTHLIB_INSECURE_TRANSPORT
         value: 1
-
-cronJobs:
-  - name: backup-every-3h
-    schedule: "0 */3 * * *"
-    command: "python backup.py"
