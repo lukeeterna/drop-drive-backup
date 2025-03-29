@@ -1,16 +1,34 @@
 services:
   - type: web
-    name: drop-drive-backup
+    name: drop-drive-auth
     runtime: python
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "python main.py"  # 🔥 Qui c'è l'errore
+    startCommand: "python main.py"
     envVars:
       - key: CLIENT_SECRET_FILE
         value: client_secret.json
       - key: TOKEN_FILE
         value: token.json
       - key: REDIRECT_URI
-        value: https://drop-drive-backup.onrender.com/auth/callback
+        value: https://drop-drive-auth.onrender.com/auth/callback
+      - key: BACKUP_SOURCE
+        value: output/
+      - key: GDRIVE_FOLDER_ID
+        value: 1ewRXIwPs-gxmtfn6S0z95LYk9yrZxgwL
+      - key: OAUTHLIB_INSECURE_TRANSPORT
+        value: 1
+
+  - type: cron
+    name: drop-drive-cron
+    schedule: "0 */3 * * *"
+    runtime: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python backup.py"
+    envVars:
+      - key: CLIENT_SECRET_FILE
+        value: client_secret.json
+      - key: TOKEN_FILE
+        value: token.json
       - key: BACKUP_SOURCE
         value: output/
       - key: GDRIVE_FOLDER_ID
