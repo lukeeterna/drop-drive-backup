@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 import os
 import json
 from flask import Flask, request, redirect
@@ -71,9 +71,3 @@ def backup_to_drive():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
-=======
-from backup_script import app
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8000)
->>>>>>> 8907f78 (🚀 Versione definitiva con backup attivo e main.py unificato)

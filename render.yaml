@@ -1,9 +1,11 @@
 services:
   - type: web
     name: drop-drive-auth
-    runtime: python
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "python main.py"
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    autoDeploy: true
     envVars:
       - key: CLIENT_SECRET_FILE
         value: client_secret.json
@@ -14,16 +16,14 @@ services:
       - key: BACKUP_SOURCE
         value: output/
       - key: GDRIVE_FOLDER_ID
-        value: 1ewRXIwPs-gxmtfn6S0z95LYk9yrZxgwL
-      - key: OAUTHLIB_INSECURE_TRANSPORT
-        value: 1
+        value: 16ilWwbaFk6Zj0ssInwPImYCzz_9b0BXC
 
   - type: cron
-    name: drop-drive-cron
-    schedule: "0 */3 * * *"
-    runtime: python
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "python backup.py"
+    name: backup-every-3h
+    env: python
+    schedule: '0 */3 * * *'
+    buildCommand: pip install -r requirements.txt
+    startCommand: python backup.py
     envVars:
       - key: CLIENT_SECRET_FILE
         value: client_secret.json
@@ -32,6 +32,4 @@ services:
       - key: BACKUP_SOURCE
         value: output/
       - key: GDRIVE_FOLDER_ID
-        value: 1ewRXIwPs-gxmtfn6S0z95LYk9yrZxgwL
-      - key: OAUTHLIB_INSECURE_TRANSPORT
-        value: 1
+        value: 16ilWwbaFk6Zj0ssInwPImYCzz_9b0BXC
