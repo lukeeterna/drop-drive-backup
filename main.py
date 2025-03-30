@@ -48,6 +48,13 @@ def auth_callback():
 
 def backup_to_drive():
     print("⏳ Avvio backup...")
+
+    # ✅ DEBUG STATO VARIABILE
+    if GDRIVE_FOLDER_ID:
+        print(f"📂 GDRIVE_FOLDER_ID attivo: {GDRIVE_FOLDER_ID}")
+    else:
+        print("⚠️ GDRIVE_FOLDER_ID non definito! Salvataggio nella root.")
+
     if not os.path.exists(TOKEN_FILE):
         print("❌ token.json mancante. Autentica prima su /auth/init.")
         return
