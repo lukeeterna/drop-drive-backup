@@ -2,34 +2,45 @@ services:
   - type: web
     name: drop-drive-auth
     env: python
+    region: frankfurt
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python main.py"
     plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: python main.py
-    autoDeploy: true
     envVars:
       - key: CLIENT_SECRET_FILE
         value: client_secret.json
       - key: TOKEN_FILE
         value: token.json
+      - key: GDRIVE_FOLDER_ID
+        value: 16ilWwbaFk6Zj0ssInwPImYCzz_9b0BXC
+      - key: BACKUP_SOURCE
+        value: output
       - key: REDIRECT_URI
         value: https://drop-drive-auth.onrender.com/auth/callback
-      - key: BACKUP_SOURCE
-        value: output/
-      - key: GDRIVE_FOLDER_ID
-        value: 16ilWwbaFk6Zj0ssInwPImYCzz_9b0BXC
+      - key: OAUTHLIB_INSECURE_TRANSPORT
+        value: "1"
+    secretFiles:
+      - name: client_secret.json
 
   - type: cron
-    name: backup-every-3h
+    name: drop-drive-cron
     env: python
-    schedule: '0 */3 * * *'
-    buildCommand: pip install -r requirements.txt
-    startCommand: python backup.py
+    region: frankfurt
+    schedule: "0 */3 * * *"  # ogni 3 ore
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python backup_script.py"
     envVars:
       - key: CLIENT_SECRET_FILE
         value: client_secret.json
       - key: TOKEN_FILE
         value: token.json
-      - key: BACKUP_SOURCE
-        value: output/
       - key: GDRIVE_FOLDER_ID
         value: 16ilWwbaFk6Zj0ssInwPImYCzz_9b0BXC
+      - key: BACKUP_SOURCE
+        value: output
+      - key: REDIRECT_URI
+        value: https://drop-drive-auth.onrender.com/auth/callback
+      - key: OAUTHLIB_INSECURE_TRANSPORT
+        value: "1"
+    secretFiles:
+      - name: client_secret.json
