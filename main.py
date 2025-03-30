@@ -49,7 +49,6 @@ def auth_callback():
 def backup_to_drive():
     print("⏳ Avvio backup...")
 
-    # ✅ DEBUG STATO VARIABILE
     if GDRIVE_FOLDER_ID:
         print(f"📂 GDRIVE_FOLDER_ID attivo: {GDRIVE_FOLDER_ID}")
     else:
@@ -71,15 +70,17 @@ def backup_to_drive():
         if os.path.isfile(filepath):
             file_metadata = {
                 'name': filename,
+                'mimeType': 'application/octet-stream',  # forzo tipo binario
                 'parents': [GDRIVE_FOLDER_ID] if GDRIVE_FOLDER_ID else []
             }
+            print(f"➡️ Caricamento file: {filename} nella cartella: {GDRIVE_FOLDER_ID if GDRIVE_FOLDER_ID else 'root'}")
             media = MediaFileUpload(filepath, resumable=True)
-            service.files().create(
+            file = service.files().create(
                 body=file_metadata,
                 media_body=media,
-                fields='id'
+                fields='id, name, parents'
             ).execute()
-            print(f"✅ Backup completato: {filename}")
+            print(f"✅ Backup completato: {file['name']} (ID: {file['id']}) nella cartella: {file.get('parents')}")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
