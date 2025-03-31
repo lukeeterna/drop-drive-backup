@@ -1,51 +1,40 @@
-# LUKEBACKUP_GPT - Backup GPT Agent con upload su Google Drive (con sottocartelle GPT)
-
 import os
-import shutil
-import datetime
-import json
-from drive_uploader import DriveUploader
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
 
-# Config globale
-GPT_LIST = ["backup_automatico"]  # GPT di test, estendibile
-SOURCE_PATHS = {
-    "backup_automatico": ["./drop-drive-backup.zip"]
-}
-BACKUP_ROOT = "./DRIVE_BACKUP_SIMULATION"
-LOG_FILE = os.path.join(BACKUP_ROOT, "backup_log.json")
-PARENT_DRIVE_FOLDER_ID = "16ilWwbaFk6Zj0ssInwPImYCzz_9b0BXC"
+TOKEN_PATH = "./token.json"
 
-uploader = DriveUploader()
+class DriveUploader:
+    def __init__(self, token_path=TOKEN_PATH):
+        self.token_path = token_path
+        self.creds = Credentials.from_authorized_user_file(self.token_path)
+        self.service = build('drive', 'v3', credentials=self.creds)
 
-def create_backup():
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    log = {"timestamp": timestamp, "files_backed_up": [], "status": "success"}
+    def get_or_create_folder(self, folder_name, parent_id):
+        query = f"mimeType='application/vnd.google-apps.folder' and name='{folder_name}' and '{parent_id}' in parents and trashed=false"
+        results = self.service.files().list(q=query, spaces='drive', fields='files(id, name)', supportsAllDrives=True).execute()
+        items = results.get('files', [])
+        if items:
+            return items[0]['id']
 
-    for gpt in GPT_LIST:
-        target_folder = os.path.join(BACKUP_ROOT, gpt)
-        os.makedirs(target_folder, exist_ok=True)
+        file_metadata = {
+            'name': folder_name,
+            'mimeType': 'application/vnd.google-apps.folder',
+            'parents': [parent_id]
+        }
+        folder = self.service.files().create(body=file_metadata, fields='id', supportsAllDrives=True).execute()
+        return folder.get('id')
 
-        for file_path in SOURCE_PATHS.get(gpt, []):
-            if os.path.exists(file_path):
-                filename = os.path.basename(file_path)
-                dest_path = os.path.join(target_folder, f"{timestamp}_{filename}")
-                shutil.copy2(file_path, dest_path)
-                try:
-                    drive_id = uploader.upload_file(dest_path, PARENT_DRIVE_FOLDER_ID, subfolder_name=gpt)
-                    log["files_backed_up"].append({"local": dest_path, "drive_id": drive_id})
-                except Exception as upload_error:
-                    log["files_backed_up"].append({"local": dest_path, "drive_upload": "failed", "error": str(upload_error)})
-                    log["status"] = "partial_success"
-            else:
-                print(f"❌ File non trovato: {file_path}")
-                log["status"] = "partial_success"
+    def upload_file(self, file_path, drive_folder_id, subfolder_name=None):
+        folder_id = drive_folder_id
+        if subfolder_name:
+            folder_id = self.get_or_create_folder(subfolder_name, drive_folder_id)
 
-    with open(LOG_FILE, "a") as f:
-        f.write(json.dumps(log) + "\n")
-
-    return log
-
-if __name__ == "__main__":
-    result = create_backup()
-    print("[✅ BACKUP COMPLETATO + UPLOAD ORGANIZZATO SU DRIVE]")
-    print(json.dumps(result, indent=2))
+        file_metadata = {
+            'name': os.path.basename(file_path),
+            'parents': [folder_id]
+        }
+        media = MediaFileUpload(file_path, resumable=True)
+        file = self.service.files().create(body=file_metadata, media_body=media, fields='id').execute()
+        return file.get('id')
