@@ -12,17 +12,19 @@ GPT_LIST = [
     "output_test"
 ]
 
+BACKUP_SOURCE = os.environ.get("BACKUP_SOURCE", "./output")
+
 SOURCE_PATHS = {
-    "backup_automatico": ["./output/drop-drive-backup.zip"],
+    "backup_automatico": [f"{BACKUP_SOURCE}/drop-drive-backup.zip"],
     "output_test": [
-        "./output/TEST_backup.txt",
-        "./output/backup_finale_pro_chatgpt.txt"
+        f"{BACKUP_SOURCE}/TEST_backup.txt",
+        f"{BACKUP_SOURCE}/backup_finale_pro_chatgpt.txt"
     ]
 }
 
 BACKUP_ROOT = "./DRIVE_BACKUP_SIMULATION"
 LOG_FILE = os.path.join(BACKUP_ROOT, "backup_log.json")
-PARENT_DRIVE_FOLDER_ID = "16ilWwbaFk6Zj0ssInwPImYCzz_9b0BXC"
+PARENT_DRIVE_FOLDER_ID = os.environ.get("GDRIVE_FOLDER_ID", "16ilWwbaFk6Zj0ssInwPImYCzz_9b0BXC")
 
 uploader = DriveUploader()
 
