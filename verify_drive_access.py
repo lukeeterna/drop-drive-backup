@@ -1,44 +1,68 @@
-# verify_drive_access.py
+# LUKEBACKUP_GPT - Backup GPT Agent con upload su Google Drive (con sottocartelle GPT)
 
 import os
-from googleapiclient.discovery import build
-from google.oauth2.credentials import Credentials
+import shutil
+import datetime
+import json
+from uploader_module import DriveUploader  # 🔁 Fix circular import
 
+# Config globale
+GPT_LIST = [
+    "backup_automatico",
+    "output_test"
+]
+
+BACKUP_SOURCE = os.environ.get("BACKUP_SOURCE", "./output")
 TOKEN_PATH = os.environ.get("TOKEN_FILE", "./token.json")
-FOLDER_ID = os.environ.get("GDRIVE_FOLDER_ID", None)
 
-if not FOLDER_ID:
-    raise ValueError("Variabile d'ambiente 'GDRIVE_FOLDER_ID' non impostata.")
+SOURCE_PATHS = {
+    "backup_automatico": [f"{BACKUP_SOURCE}/drop-drive-backup.zip"],
+    "output_test": [
+        f"{BACKUP_SOURCE}/TEST_backup.txt",
+        f"{BACKUP_SOURCE}/backup_finale_pro_chatgpt.txt"
+    ]
+}
 
-creds = Credentials.from_authorized_user_file(TOKEN_PATH)
-drive = build('drive', 'v3', credentials=creds)
+BACKUP_ROOT = "./DRIVE_BACKUP_SIMULATION"
+LOG_FILE = os.path.join(BACKUP_ROOT, "backup_log.json")
+PARENT_DRIVE_FOLDER_ID = os.environ.get("GDRIVE_FOLDER_ID", "16ilWwbaFk6Zj0ssInwPImYCzz_9b0BXC")
 
-print("\n🔍 Verifica accesso cartella Drive con ID:", FOLDER_ID)
+# ✅ PATCH: Creo una sola root GPT se non esiste
+uploader = DriveUploader(token_path=TOKEN_PATH)
 
-try:
-    folder = drive.files().get(fileId=FOLDER_ID, fields="id, name, owners").execute()
-    print("✅ Cartella trovata:", folder["name"])
-    print("👤 Proprietario:", folder["owners"][0]["emailAddress"])
-except Exception as e:
-    print("❌ Errore: impossibile accedere alla cartella:", e)
-
-print("\n📁 Cartelle visibili nella root del Drive:")
-results = drive.files().list(
-    q="'root' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false",
-    pageSize=20,
-    fields="files(id, name)"
-).execute()
-folders = results.get("files", [])
-for f in folders:
-    print(f" - {f['name']} ({f['id']})")
-
-# Opzionale: crea nuova cartella se non trovata
-CREATE_IF_MISSING = os.environ.get("CREATE_IF_MISSING", "false").lower() == "true"
-if CREATE_IF_MISSING:
-    print("\n🛠️ CREATING nuova cartella 'luke_backup_root' (se non esiste)...")
-    new_folder_metadata = {
-        'name': 'luke_backup_root',
-        'mimeType': 'application/vnd.google-apps.folder'
+if __name__ == "__main__":
+    result = {
+        "timestamp": datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
+        "files_backed_up": [],
+        "status": "success"
     }
-    folder = drive.files().create(body=new_folder_metadata, fields="id").execute()
-    print("✅ Nuova cartella creata con ID:", folder["id"])
+
+    for gpt in GPT_LIST:
+        target_folder = os.path.join(BACKUP_ROOT, gpt)
+        os.makedirs(target_folder, exist_ok=True)
+
+        for file_path in SOURCE_PATHS.get(gpt, []):
+            if os.path.exists(file_path):
+                filename = os.path.basename(file_path)
+                timestamped_name = f"{result['timestamp']}_{filename}"
+                dest_path = os.path.join(target_folder, timestamped_name)
+                shutil.copy2(file_path, dest_path)
+                try:
+                    drive_id = uploader.upload_file(
+                        dest_path,
+                        parent_id=PARENT_DRIVE_FOLDER_ID,
+                        subfolder_name=gpt
+                    )
+                    result["files_backed_up"].append({"local": dest_path, "drive_id": drive_id})
+                except Exception as upload_error:
+                    result["files_backed_up"].append({"local": dest_path, "drive_upload": "failed", "error": str(upload_error)})
+                    result["status"] = "partial_success"
+            else:
+                print(f"❌ File non trovato: {file_path}")
+                result["status"] = "partial_success"
+
+    with open(LOG_FILE, "a") as f:
+        f.write(json.dumps(result) + "\n")
+
+    print("[✅ BACKUP COMPLETATO + UPLOAD ORGANIZZATO SU DRIVE]")
+    print(json.dumps(result, indent=2))
