@@ -1,86 +1,84 @@
-from flask import Flask, request, redirect
-from google_auth_oauthlib.flow import Flow
+# LUKEBACKUP_GPT - Backup GPT Agent con upload su Google Drive (con debug e sottocartelle corrette)
+# Esegue il backup di file locali e li carica nella sottocartella corrispondente in Drive
+
+import os
+import shutil
+import datetime
+import json
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
-from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
-from dotenv import load_dotenv
-import os, json
 
-load_dotenv()
+# Config globale
+GPT_LIST = ["backup_automatico"]  # Backup test GPT
+SOURCE_PATHS = {
+    "backup_automatico": ["./drop-drive-backup.zip"]
+}
+BACKUP_ROOT = "./DRIVE_BACKUP_SIMULATION"
+LOG_FILE = os.path.join(BACKUP_ROOT, "backup_log.json")
+PARENT_DRIVE_FOLDER_ID = "16ilWwbaFk6Zj0ssInwPImYCzz_9b0BXC"
+TOKEN_PATH = "./token.json"
 
-app = Flask(__name__)
+def get_or_create_folder(service, folder_name, parent_id):
+    print(f"🔎 CERCO cartella '{folder_name}' dentro parent ID: {parent_id}")
+    query = f"mimeType='application/vnd.google-apps.folder' and name='{folder_name}' and '{parent_id}' in parents and trashed=false"
+    results = service.files().list(q=query, spaces='drive', fields='files(id, name)', supportsAllDrives=True).execute()
+    items = results.get('files', [])
+    if items:
+        print(f"📁 Cartella trovata: {items[0]['name']} (ID: {items[0]['id']})")
+        return items[0]['id']
+    file_metadata = {
+        'name': folder_name,
+        'mimeType': 'application/vnd.google-apps.folder',
+        'parents': [parent_id]
+    }
+    folder = service.files().create(body=file_metadata, fields='id', supportsAllDrives=True).execute()
+    print(f"📂 Cartella creata: {folder_name} → ID: {folder['id']}")
+    return folder.get('id')
 
-CLIENT_SECRET_FILE = os.getenv("CLIENT_SECRET_FILE", "client_secret.json")
-TOKEN_FILE = os.getenv("TOKEN_FILE", "token.json")
-REDIRECT_URI = os.getenv("REDIRECT_URI", "http://localhost:8000/auth/callback")
-GDRIVE_FOLDER_ID = os.getenv("GDRIVE_FOLDER_ID")
-BACKUP_SOURCE = os.getenv("BACKUP_SOURCE", "output")
-
-SCOPES = ["https://www.googleapis.com/auth/drive.file"]
-
-@app.route("/")
-def index():
-    return "✅ Flask attivo. Visita /auth/init per autenticarti."
-
-@app.route("/auth/init")
-def auth_init():
-    flow = Flow.from_client_secrets_file(
-        CLIENT_SECRET_FILE,
-        scopes=SCOPES,
-        redirect_uri=REDIRECT_URI
-    )
-    auth_url, _ = flow.authorization_url(prompt='consent')
-    return redirect(auth_url)
-
-@app.route("/auth/callback")
-def auth_callback():
-    flow = Flow.from_client_secrets_file(
-        CLIENT_SECRET_FILE,
-        scopes=SCOPES,
-        redirect_uri=REDIRECT_URI
-    )
-    flow.fetch_token(authorization_response=request.url)
-    creds = flow.credentials
-    with open(TOKEN_FILE, 'w') as token:
-        token.write(creds.to_json())
-    return "✅ Autenticazione completata. Puoi ora schedulare il backup."
-
-def backup_to_drive():
-    print("⏳ Avvio backup...")
-
-    if GDRIVE_FOLDER_ID:
-        print(f"📂 GDRIVE_FOLDER_ID attivo: {GDRIVE_FOLDER_ID}")
-    else:
-        print("⚠️ GDRIVE_FOLDER_ID non definito! Salvataggio nella root.")
-
-    if not os.path.exists(TOKEN_FILE):
-        print("❌ token.json mancante. Autentica prima su /auth/init.")
-        return
-
-    creds = Credentials.from_authorized_user_file(TOKEN_FILE, SCOPES)
+def upload_to_drive(filepath, parent_folder_id, gpt_folder_name):
+    creds = Credentials.from_authorized_user_file(TOKEN_PATH)
     service = build('drive', 'v3', credentials=creds)
+    subfolder_id = get_or_create_folder(service, gpt_folder_name, parent_folder_id)
+    filename = os.path.basename(filepath)
+    file_metadata = {
+        'name': filename,
+        'parents': [subfolder_id]
+    }
+    media = MediaFileUpload(filepath, resumable=True)
+    file = service.files().create(body=file_metadata, media_body=media, fields='id').execute()
+    print(f"📤 File caricato su Drive: {filename} → ID: {file['id']}")
+    return file.get('id')
 
-    if not os.path.isdir(BACKUP_SOURCE):
-        print(f"❌ Cartella {BACKUP_SOURCE} non trovata.")
-        return
+def create_backup():
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    log = {"timestamp": timestamp, "files_backed_up": [], "status": "success"}
 
-    for filename in os.listdir(BACKUP_SOURCE):
-        filepath = os.path.join(BACKUP_SOURCE, filename)
-        if os.path.isfile(filepath):
-            file_metadata = {
-                'name': filename,
-                'mimeType': 'application/octet-stream',  # forzo tipo binario
-                'parents': [GDRIVE_FOLDER_ID] if GDRIVE_FOLDER_ID else []
-            }
-            print(f"➡️ Caricamento file: {filename} nella cartella: {GDRIVE_FOLDER_ID if GDRIVE_FOLDER_ID else 'root'}")
-            media = MediaFileUpload(filepath, resumable=True)
-            file = service.files().create(
-                body=file_metadata,
-                media_body=media,
-                fields='id, name, parents'
-            ).execute()
-            print(f"✅ Backup completato: {file['name']} (ID: {file['id']}) nella cartella: {file.get('parents')}")
+    for gpt in GPT_LIST:
+        target_folder = os.path.join(BACKUP_ROOT, gpt)
+        os.makedirs(target_folder, exist_ok=True)
+
+        for file_path in SOURCE_PATHS.get(gpt, []):
+            if os.path.exists(file_path):
+                filename = os.path.basename(file_path)
+                dest_path = os.path.join(target_folder, f"{timestamp}_{filename}")
+                shutil.copy2(file_path, dest_path)
+                try:
+                    drive_id = upload_to_drive(dest_path, PARENT_DRIVE_FOLDER_ID, gpt)
+                    log["files_backed_up"].append({"local": dest_path, "drive_id": drive_id})
+                except Exception as upload_error:
+                    log["files_backed_up"].append({"local": dest_path, "drive_upload": "failed", "error": str(upload_error)})
+                    log["status"] = "partial_success"
+            else:
+                print(f"❌ File non trovato: {file_path}")
+                log["status"] = "partial_success"
+
+    with open(LOG_FILE, "a") as f:
+        f.write(json.dumps(log) + "\n")
+
+    return log
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000)
+    result = create_backup()
+    print("[✅ BACKUP COMPLETATO + UPLOAD ORGANIZZATO SU DRIVE]")
+    print(json.dumps(result, indent=2))
