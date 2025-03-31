@@ -4,7 +4,7 @@ import os
 import shutil
 import datetime
 import json
-from drive_uploader import DriveUploader
+from uploader_module import DriveUploader  # 🔁 Fix circular import
 
 # Config globale
 GPT_LIST = [
