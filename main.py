@@ -1,78 +1,49 @@
-# LUKEBACKUP_GPT - Backup GPT Agent con upload su Google Drive (con sottocartelle GPT)
+# main.py - Avvia bootstrap Drive se mancano le directory essenziali
 
 import os
-import shutil
-import datetime
 import json
-from uploader_module import DriveUploader  # 🔁 Fix circular import
+from uploader_module import DriveUploader
+from bootstrap_drive import structure, DRIVE_ROOT_NAME, DRIVE_LOG_FILE, DRIVE_REGISTRY
 
-# Config globale
-GPT_LIST = [
-    "backup_automatico",
-    "output_test"
-]
+uploader = DriveUploader()
 
-BACKUP_SOURCE = os.environ.get("BACKUP_SOURCE", "./output")
-TOKEN_PATH = os.environ.get("TOKEN_FILE", "./token.json")
+def check_or_create_drive_structure():
+    """
+    Controlla se il file di log esiste, altrimenti crea la struttura su Drive.
+    """
+    if os.path.exists(DRIVE_LOG_FILE) and os.path.exists(DRIVE_REGISTRY):
+        print("📂 Struttura già inizializzata. Nessuna azione necessaria.")
+        return
 
-SOURCE_PATHS = {
-    "backup_automatico": [f"{BACKUP_SOURCE}/drop-drive-backup.zip"],
-    "output_test": [
-        f"{BACKUP_SOURCE}/TEST_backup.txt",
-        f"{BACKUP_SOURCE}/backup_finale_pro_chatgpt.txt"
-    ]
-}
+    print("🛠️ Avvio bootstrap Drive (trigger da main.py)...")
+    log_data = {}
+    registry_data = {}
 
-BACKUP_ROOT = "./DRIVE_BACKUP_SIMULATION"
-LOG_FILE = os.path.join(BACKUP_ROOT, "backup_log.json")
-FALLBACK_LOG_FILE = os.path.join(BACKUP_ROOT, "fallback_files.json")
-PARENT_DRIVE_FOLDER_ID = os.environ.get("GDRIVE_FOLDER_ID", "16ilWwbaFk6Zj0ssInwPImYCzz_9b0BXC")
+    root_id = uploader._ensure_subfolder(DRIVE_ROOT_NAME)
+    log_data[DRIVE_ROOT_NAME] = root_id
 
-# ✅ PATCH: Creo una sola root GPT se non esiste
-uploader = DriveUploader(token_path=TOKEN_PATH)
+    for section, contents in structure.items():
+        section_id = uploader._ensure_subfolder(section, parent_id=root_id)
+        log_data[section] = section_id
+
+        for main_folder, subfolders in contents.items():
+            main_id = uploader._ensure_subfolder(main_folder, parent_id=section_id)
+            registry_data[main_folder] = {
+                "id": main_id,
+                "section": section
+            }
+            for sub in subfolders:
+                sub_id = uploader._ensure_subfolder(sub, parent_id=main_id)
+                log_data[f"{main_folder}/{sub}"] = sub_id
+
+    with open(DRIVE_LOG_FILE, "w") as log:
+        json.dump(log_data, log, indent=2)
+
+    with open(DRIVE_REGISTRY, "w") as reg:
+        json.dump(registry_data, reg, indent=2)
+
+    print("✅ STRUTTURA CREATA SU DRIVE")
+    print(json.dumps(log_data, indent=2))
 
 if __name__ == "__main__":
-    result = {
-        "timestamp": datetime.datetime.now().strftime("%Y%m%d_%H%M%S"),
-        "files_backed_up": [],
-        "status": "success"
-    }
-    fallback_files = []
-
-    for gpt in GPT_LIST:
-        target_folder = os.path.join(BACKUP_ROOT, gpt)
-        os.makedirs(target_folder, exist_ok=True)
-
-        for file_path in SOURCE_PATHS.get(gpt, []):
-            # 🔄 Se il file non esiste, lo genero automaticamente per test
-            if not os.path.exists(file_path):
-                os.makedirs(os.path.dirname(file_path), exist_ok=True)
-                with open(file_path, "w") as f:
-                    f.write(f"FILE DI TEST AUTO-GENERATO PER {gpt}\n")
-                fallback_files.append({"generated": file_path, "gpt": gpt})
-
-            filename = os.path.basename(file_path)
-            timestamped_name = f"{result['timestamp']}_{filename}"
-            dest_path = os.path.join(target_folder, timestamped_name)
-            shutil.copy2(file_path, dest_path)
-            try:
-                drive_id = uploader.upload_file(
-                    dest_path,
-                    parent_id=PARENT_DRIVE_FOLDER_ID,
-                    subfolder_name=gpt
-                )
-                result["files_backed_up"].append({"local": dest_path, "drive_id": drive_id})
-            except Exception as upload_error:
-                result["files_backed_up"].append({"local": dest_path, "drive_upload": "failed", "error": str(upload_error)})
-                result["status"] = "partial_success"
-
-    os.makedirs(BACKUP_ROOT, exist_ok=True)
-    with open(LOG_FILE, "a") as f:
-        f.write(json.dumps(result) + "\n")
-
-    if fallback_files:
-        with open(FALLBACK_LOG_FILE, "a") as f:
-            f.write(json.dumps({"timestamp": result["timestamp"], "fallbacks": fallback_files}) + "\n")
-
-    print("[✅ BACKUP COMPLETATO + UPLOAD ORGANIZZATO SU DRIVE]")
-    print(json.dumps(result, indent=2))
+    check_or_create_drive_structure()
