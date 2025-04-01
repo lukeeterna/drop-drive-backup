@@ -1,7 +1,9 @@
-from googleapiclient.http import MediaFileUpload
-from googleapiclient.discovery import build
-from google.oauth2.credentials import Credentials
 import os
+import json
+from google.oauth2.credentials import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload  # ✅ FIX IMPORT
+
 
 class DriveUploader:
     def __init__(self, token_path="./token.json"):
