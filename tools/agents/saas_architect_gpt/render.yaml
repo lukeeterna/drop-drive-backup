@@ -1,0 +1,16 @@
+services:
+  - type: worker
+    name: saas-gpt-worker
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    plan: starter
+    region: frankfurt
+    autoDeploy: true
+    branch: main
+    rootDir: tools/agents/saas_gpt
+    envVars:
+      - key: TOKEN_FILE
+        value: token.json
+      - key: GDRIVE_FOLDER_ID
+        value: 1dBbA3kWHpBSuCL1XxbtLo-GNlTFfgE3W
