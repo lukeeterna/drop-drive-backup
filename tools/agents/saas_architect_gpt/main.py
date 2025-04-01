@@ -1,4 +1,4 @@
-# main.py - Avvia bootstrap Drive se mancano le directory essenziali
+# tools/agents/saas_architect_gpt/main.py
 
 import os
 import json
@@ -8,9 +8,6 @@ from bootstrap_drive import structure, DRIVE_ROOT_NAME, DRIVE_LOG_FILE, DRIVE_RE
 uploader = DriveUploader()
 
 def check_or_create_drive_structure():
-    """
-    Controlla se il file di log esiste, altrimenti crea la struttura su Drive.
-    """
     if os.path.exists(DRIVE_LOG_FILE) and os.path.exists(DRIVE_REGISTRY):
         print("📂 Struttura già inizializzata. Nessuna azione necessaria.")
         return
