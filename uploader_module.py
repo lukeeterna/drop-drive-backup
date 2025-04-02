@@ -1,8 +1,11 @@
+# uploader_module.py - Modulo gestione upload su Google Drive
+
 import os
 import json
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload  # ✅ FIX IMPORT
+from googleapiclient.http import MediaFileUpload
+import hashlib
 
 
 class DriveUploader:
@@ -11,10 +14,13 @@ class DriveUploader:
         self.creds = Credentials.from_authorized_user_file(self.token_path)
         self.service = build("drive", "v3", credentials=self.creds)
 
-    def upload_file(self, file_path, parent_id=None, subfolder_name=None):
+    def upload_file(self, file_path, parent_id=None, subfolder_name=None, hash_check=False):
+        if hash_check and self._file_already_uploaded(file_path, parent_id, subfolder_name):
+            print(f"\u23e9 Nessun cambiamento per: {file_path}")
+            return "skipped"
+
         file_metadata = {"name": os.path.basename(file_path)}
 
-        # ⬇️ Se c'è una subfolder, la creo se non esiste
         if subfolder_name:
             subfolder_id = self._ensure_subfolder(subfolder_name, parent_id)
             file_metadata["parents"] = [subfolder_id]
@@ -56,3 +62,32 @@ class DriveUploader:
             fields="id"
         ).execute()
         return folder.get("id")
+
+    def _file_already_uploaded(self, file_path, parent_id, subfolder_name=None):
+        filename = os.path.basename(file_path)
+        query = f"name='{filename}' and trashed=false"
+        if parent_id:
+            query += f" and '{parent_id}' in parents"
+
+        response = self.service.files().list(
+            q=query,
+            spaces="drive",
+            fields="files(id, name, md5Checksum)"
+        ).execute()
+
+        files = response.get("files", [])
+        if not files:
+            return False
+
+        local_hash = self._compute_md5(file_path)
+        for f in files:
+            if f.get("md5Checksum") == local_hash:
+                return True
+        return False
+
+    def _compute_md5(self, file_path):
+        hash_md5 = hashlib.md5()
+        with open(file_path, "rb") as f:
+            for chunk in iter(lambda: f.read(4096), b""):
+                hash_md5.update(chunk)
+        return hash_md5.hexdigest()
