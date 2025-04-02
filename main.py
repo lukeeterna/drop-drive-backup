@@ -1,49 +1,76 @@
-# main.py - Avvia bootstrap Drive se mancano le directory essenziali
+# main.py - Esecuzione backup GPT con controllo versioni smart
 
 import os
+import shutil
+import datetime
 import json
-from uploader_module import DriveUploader
-from bootstrap_drive import structure, DRIVE_ROOT_NAME, DRIVE_LOG_FILE, DRIVE_REGISTRY
+import hashlib
+from uploader_module import DriveUploader  # 🔁 Fix circular import
 
-uploader = DriveUploader()
+# Config globale
+GPT_LIST = [
+    "backup_automatico",
+    "output_test"
+]
 
-def check_or_create_drive_structure():
-    """
-    Controlla se il file di log esiste, altrimenti crea la struttura su Drive.
-    """
-    if os.path.exists(DRIVE_LOG_FILE) and os.path.exists(DRIVE_REGISTRY):
-        print("📂 Struttura già inizializzata. Nessuna azione necessaria.")
-        return
+BACKUP_SOURCE = os.environ.get("BACKUP_SOURCE", "./output")
+TOKEN_PATH = os.environ.get("TOKEN_FILE", "./token.json")
+BACKUP_ROOT = "./DRIVE_BACKUP_SIMULATION"
+LOG_FILE = os.path.join(BACKUP_ROOT, "backup_log.json")
+PARENT_DRIVE_FOLDER_ID = os.environ.get("GDRIVE_FOLDER_ID", "16ilWwbaFk6Zj0ssInwPImYCzz_9b0BXC")
 
-    print("🛠️ Avvio bootstrap Drive (trigger da main.py)...")
-    log_data = {}
-    registry_data = {}
+def sha256sum(filename):
+    h = hashlib.sha256()
+    with open(filename, "rb") as f:
+        while chunk := f.read(8192):
+            h.update(chunk)
+    return h.hexdigest()
 
-    root_id = uploader._ensure_subfolder(DRIVE_ROOT_NAME)
-    log_data[DRIVE_ROOT_NAME] = root_id
-
-    for section, contents in structure.items():
-        section_id = uploader._ensure_subfolder(section, parent_id=root_id)
-        log_data[section] = section_id
-
-        for main_folder, subfolders in contents.items():
-            main_id = uploader._ensure_subfolder(main_folder, parent_id=section_id)
-            registry_data[main_folder] = {
-                "id": main_id,
-                "section": section
-            }
-            for sub in subfolders:
-                sub_id = uploader._ensure_subfolder(sub, parent_id=main_id)
-                log_data[f"{main_folder}/{sub}"] = sub_id
-
-    with open(DRIVE_LOG_FILE, "w") as log:
-        json.dump(log_data, log, indent=2)
-
-    with open(DRIVE_REGISTRY, "w") as reg:
-        json.dump(registry_data, reg, indent=2)
-
-    print("✅ STRUTTURA CREATA SU DRIVE")
-    print(json.dumps(log_data, indent=2))
+uploader = DriveUploader(token_path=TOKEN_PATH)
 
 if __name__ == "__main__":
-    check_or_create_drive_structure()
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    result = {
+        "timestamp": timestamp,
+        "files_backed_up": [],
+        "status": "success"
+    }
+
+    for gpt in GPT_LIST:
+        target_folder = os.path.join(BACKUP_ROOT, gpt)
+        os.makedirs(target_folder, exist_ok=True)
+
+        source_paths = {
+            "backup_automatico": [f"{BACKUP_SOURCE}/drop-drive-backup.zip"],
+            "output_test": [
+                f"{BACKUP_SOURCE}/TEST_backup.txt",
+                f"{BACKUP_SOURCE}/backup_finale_pro_chatgpt.txt"
+            ]
+        }.get(gpt, [])
+
+        for file_path in source_paths:
+            if os.path.exists(file_path):
+                filename = os.path.basename(file_path)
+                dest_path = os.path.join(target_folder, f"{timestamp}_{filename}")
+                shutil.copy2(file_path, dest_path)
+
+                try:
+                    drive_id = uploader.upload_file(
+                        dest_path,
+                        parent_id=PARENT_DRIVE_FOLDER_ID,
+                        subfolder_name=gpt,
+                        hash_check=True
+                    )
+                    result["files_backed_up"].append({"local": dest_path, "drive_id": drive_id})
+                except Exception as upload_error:
+                    result["files_backed_up"].append({"local": dest_path, "drive_upload": "failed", "error": str(upload_error)})
+                    result["status"] = "partial_success"
+            else:
+                print(f"❌ File non trovato: {file_path}")
+                result["status"] = "partial_success"
+
+    with open(LOG_FILE, "a") as f:
+        f.write(json.dumps(result) + "\n")
+
+    print("[✅ BACKUP COMPLETATO + UPLOAD ORGANIZZATO SU DRIVE]")
+    print(json.dumps(result, indent=2))
