@@ -51,7 +51,7 @@ if __name__ == "__main__":
         for file_path in source_paths:
             if os.path.exists(file_path):
                 filename = os.path.basename(file_path)
-                dest_path = os.path.join(target_folder, f"{timestamp}_{filename}")
+                dest_path = os.path.join(target_folder, f"{timestamp}_{filename}") 
                 shutil.copy2(file_path, dest_path)
 
                 try:
