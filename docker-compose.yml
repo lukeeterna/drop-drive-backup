@@ -10,7 +10,8 @@ services:
     env_file:
       - .env
    volumes:
-  - n8n_data:/home/node/.n8n
+  - /root/n8n_data:/home/node/.n8n
+
 
 volumes:
   n8n_data:
