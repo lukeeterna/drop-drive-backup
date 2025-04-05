@@ -6,9 +6,11 @@ services:
     restart: always
     ports:
       - "5678:5678"
-    environment:
+       environment:
       - N8N_HOST=0.0.0.0
       - N8N_PORT=5678
       - WEBHOOK_URL=http://95.216.208.87:5678/
+      - N8N_SECURE_COOKIE=false
+
     volumes:
       - ~/.n8n:/home/node/.n8n
