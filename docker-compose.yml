@@ -1,28 +1,15 @@
 version: "3.7"
-  services:
+
+services:
   n8n:
     image: n8nio/n8n
-    environment:
-      - N8N_SECURE_COOKIE=false
+    restart: always
     ports:
       - "5678:5678"
-    volumes:
-      - ~/.n8n:/home/node/.n8n
-
-
-
-volumes:
-  n8n_data:
-
-    networks:
-      - n8n_network
-
-networks:
-  n8n_network:
-    driver: bridge
-        environment:
+    environment:
       - N8N_HOST=0.0.0.0
       - N8N_PORT=5678
       - WEBHOOK_URL=http://95.216.208.87:5678/
-      - N8N_SECURE_COOKIE=false
-
+      - N8N_SECURE_COOKIE=false  # 👈 AGGIUNTO QUI DIRETTAMENTE
+    volumes:
+      - ~/.n8n:/home/node/.n8n
