@@ -10,7 +10,10 @@ PARENT_FOLDER_ID = os.environ.get("GDRIVE_FOLDER_ID", "")
 FOLDER_NAME = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("DRIVE_SUBFOLDER", "default_folder")
 FILES_TO_UPLOAD = sys.argv[2:]  # opzionale
 
-creds = Credentials.from_authorized_user_file(TOKEN_PATH)
+creds = service_account.Credentials.from_service_account_file(
+    'service_account.json', scopes=SCOPES
+)
+
 service = build("drive", "v3", credentials=creds)
 
 def create_or_get_folder(name, parent_id):
