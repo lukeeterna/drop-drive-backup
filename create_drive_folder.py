@@ -1,47 +1,45 @@
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-import os
+import sys
 
-# Imposta il nome della cartella da creare
-FOLDER_NAME = "n8n-test"
-# Lascia None per creare nella root del Drive
-PARENT_FOLDER_ID = None
-# Percorso al file JSON del service account
-SERVICE_ACCOUNT_FILE = "service_account.json"
+# === CONFIGURAZIONE ===
+SERVICE_ACCOUNT_FILE = 'service_account.json'
+SCOPES = ['https://www.googleapis.com/auth/drive']
+PARENT_FOLDER_ID = '16ilWwbaFk6Zj0ssInwPImYCzz_9b0BXC'  # CARTELLA PRINCIPALE
 
-SCOPES = ["https://www.googleapis.com/auth/drive"]
+# === INPUT DA TERMINALE ===
+if len(sys.argv) != 2:
+    print("❌ Uso: python3 create_drive_folder.py <nome_cartella>")
+    sys.exit(1)
+FOLDER_NAME = sys.argv[1]
 
-# Carica le credenziali dal file JSON del service account
-credentials = service_account.Credentials.from_service_account_file(
+# === AUTENTICAZIONE ===
+creds = service_account.Credentials.from_service_account_file(
     SERVICE_ACCOUNT_FILE, scopes=SCOPES
 )
+service = build('drive', 'v3', credentials=creds)
 
-# Costruisce il servizio Google Drive
-service = build("drive", "v3", credentials=credentials)
+def create_or_get_folder(name, parent_id):
+    print(f"🔍 Avvio creazione cartella '{name}' in '{parent_id}'")
+    query = (
+        f"mimeType='application/vnd.google-apps.folder' and "
+        f"name='{name}' and '{parent_id}' in parents and trashed=false"
+    )
+    results = service.files().list(q=query, spaces='drive', fields="files(id, name)").execute()
+    folders = results.get('files', [])
 
-def create_or_get_folder(name, parent_id=None):
-    query = f"mimeType='application/vnd.google-apps.folder' and name='{name}' and trashed=false"
-    if parent_id:
-        query += f" and '{parent_id}' in parents"
+    if folders:
+        print(f"✅ Cartella '{name}' trovata. ID: {folders[0]['id']}")
+        return folders[0]['id']
 
-    results = service.files().list(q=query, spaces="drive", fields="files(id, name)").execute()
-    items = results.get("files", [])
+    file_metadata = {
+        'name': name,
+        'mimeType': 'application/vnd.google-apps.folder',
+        'parents': [parent_id]
+    }
+    folder = service.files().create(body=file_metadata, fields='id').execute()
+    print(f"✅ Cartella '{name}' creata. ID: {folder.get('id')}")
+    return folder.get('id')
 
-    if items:
-        print(f"✅ Cartella già esistente con ID: {items[0]['id']}")
-        return items[0]["id"]
-    else:
-        file_metadata = {
-            "name": name,
-            "mimeType": "application/vnd.google-apps.folder",
-        }
-        if parent_id:
-            file_metadata["parents"] = [parent_id]
-
-        file = service.files().create(body=file_metadata, fields="id").execute()
-        print(f"📁 Cartella '{name}' creata con ID: {file.get('id')}")
-        return file.get("id")
-
-# Esecuzione
-print(f"\U0001F50D Avvio creazione cartella '{FOLDER_NAME}' in root: ")
+# === ESECUZIONE ===
 folder_id = create_or_get_folder(FOLDER_NAME, PARENT_FOLDER_ID)
