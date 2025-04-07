@@ -1,14 +1,16 @@
 from google_auth_oauthlib.flow import InstalledAppFlow
 
+# Definisci lo scope per l'accesso a Google Drive
 SCOPES = ['https://www.googleapis.com/auth/drive']
 
-flow = InstalledAppFlow.from_client_secrets_file(
-    'client_secret.json',  # Assicurati che sia nella stessa cartella
-    scopes=SCOPES
-)
-creds = flow.run_local_server(port=0)
+# Inizializza il flow
+flow = InstalledAppFlow.from_client_secrets_file('client_secret.json', SCOPES)
 
-with open('token.json', 'w') as token:
-    token.write(creds.to_json())
+# Usa il terminale invece del browser per autenticarti
+creds = flow.run_console()
 
-print("✅ Nuovo token.json generato con accesso completo a Google Drive.")
+# Salva il token
+with open('token.json', 'w') as token_file:
+    token_file.write(creds.to_json())
+
+print("✅ Token generato e salvato correttamente in token.json.")
