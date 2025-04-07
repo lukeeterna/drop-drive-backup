@@ -2,9 +2,8 @@
 
 import os
 import sys
-from google.oauth2.credentials import Credentials
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
+from google.oauth2 import service_account
+
 
 TOKEN_PATH = os.environ.get("TOKEN_FILE", "./token.json")
 PARENT_FOLDER_ID = os.environ.get("GDRIVE_FOLDER_ID", "")
