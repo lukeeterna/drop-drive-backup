@@ -6,7 +6,8 @@ from google.oauth2 import service_account
 
 
 TOKEN_PATH = os.environ.get("TOKEN_FILE", "./token.json")
-PARENT_FOLDER_ID = os.environ.get("GDRIVE_FOLDER_ID", "")
+PARENT_FOLDER_ID = None  # oppure commentala completamente
+
 FOLDER_NAME = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("DRIVE_SUBFOLDER", "default_folder")
 FILES_TO_UPLOAD = sys.argv[2:]  # opzionale
 
@@ -14,13 +15,11 @@ creds = service_account.Credentials.from_service_account_file(
     'service_account.json', scopes=SCOPES
 )
 
-service = build("drive", "v3", credentials=creds)
+def create_or_get_folder(name, parent_id=None):
+    query = f"mimeType='application/vnd.google-apps.folder' and name='{name}' and trashed=false"
+    if parent_id:
+        query += f" and '{parent_id}' in parents"
 
-def create_or_get_folder(name, parent_id):
-    query = (
-        f"mimeType='application/vnd.google-apps.folder' "
-        f"and name='{name}' and '{parent_id}' in parents and trashed=false"
-    )
     results = service.files().list(q=query, spaces="drive", fields="files(id, name)").execute()
     folders = results.get("files", [])
     if folders:
