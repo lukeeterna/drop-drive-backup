@@ -25,7 +25,7 @@ def create_or_get_folder(name, parent_id):
         f"mimeType='application/vnd.google-apps.folder' and "
         f"name='{name}' and '{parent_id}' in parents and trashed=false"
     )
-    results = service.files().list(q=query, spaces='drive', fields="files(id, name)").execute()
+    results = service.files().list(q=query, spaces='drive', fields="files(id, name)").execute() 
     folders = results.get('files', [])
 
     if folders:
