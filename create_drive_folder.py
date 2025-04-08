@@ -19,27 +19,4 @@ creds = service_account.Credentials.from_service_account_file(
 )
 service = build('drive', 'v3', credentials=creds)
 
-def create_or_get_folder(name, parent_id):
-    print(f"🔍 Avvio creazione cartella '{name}' in '{parent_id}'")
-    query = (
-        f"mimeType='application/vnd.google-apps.folder' and "
-        f"name='{name}' and '{parent_id}' in parents and trashed=false"
-    )
-    results = service.files().list(q=query, spaces='drive', fields="files(id, name)").execute()
-    folders = results.get('files', [])
-
-    if folders:
-        print(f"✅ Cartella '{name}' trovata. ID: {folders[0]['id']}")
-        return folders[0]['id']
-
-    file_metadata = {
-        'name': name,
-        'mimeType': 'application/vnd.google-apps.folder',
-        'parents': [parent_id]
-    }
-    folder = service.files().create(body=file_metadata, fields='id').execute()
-    print(f"✅ Cartella '{name}' creata. ID: {folder.get('id')}")
-    return folder.get('id')
-
-# === ESECUZIONE ===
-folder_id = create_or_get_folder(FOLDER_NAME, PARENT_FOLDER_ID)
+def create
